@@ -1,6 +1,3 @@
--- Webhook Configuration
-WEBHOOK_URL = 'https://discord.com/api/webhooks/1408101949613539429/-7NyMTr4xxMy_DLpH9uQBWyh52P6g5voZd_IZlpBpDxLgukH49QxUWYYd9v5vDTVbG7v'
-
 -- Complete SPL UI Library Implementation
 -- This version includes the basic SPL GUI without additional features
 
