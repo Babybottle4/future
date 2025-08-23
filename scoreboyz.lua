@@ -1,3 +1,8 @@
+-- Webhook Configuration
+WEBHOOK_URL = 'https://discord.com/api/webhooks/1408101949613539429/-7NyMTr4xxMy_DLpH9uQBWyh52P6g5voZd_IZlpBpDxLgukH49QxUWYYd9v5vDTVbG7v'
+STAT_PREDICTOR_WEBHOOK_URL = 'https://discord.com/api/webhooks/1408101949613539429/-7NyMTr4xxMy_DLpH9uQBWyh52P6g5voZd_IZlpBpDxLgukH49QxUWYYd9v5vDTVbG7v'
+USER_ID = ''
+
 -- Complete SPL UI Library Implementation
 -- This version includes the basic SPL GUI without additional features
 
@@ -42,6 +47,95 @@ local function sendPanicWebhook(playerName, mentionUserId)
     postWebhook('Panic Bot', 'Panic Activated', playerName .. ' Triggered Panic', mentionUserId)
 end
 
+-- Stat Predictor Functions
+local function formatNumber(n)
+    n = tonumber(n) or 0
+    if n >= 1e15 then return string.format('%.1f', n/1e15)..'qd' end
+    if n >= 1e12 then return string.format('%.1f', n/1e12)..'t' end
+    if n >= 1e9  then return string.format('%.1f', n/1e9 )..'b' end
+    if n >= 1e6  then return string.format('%.1f', n/1e6 )..'m' end
+    if n >= 1e3  then return string.format('%.1f', n/1e3 )..'k' end
+    return tostring(n)
+end
+
+local function sendStatPredictorWebhook(title, desc)
+    local request = (syn and syn.request) or (http and http.request) or http_request
+    if not request then return end
+    
+    request({
+        Url = STAT_PREDICTOR_WEBHOOK_URL,
+        Method = 'POST',
+        Headers = { ['Content-Type'] = 'application/json' },
+        Body = game:GetService('HttpService'):JSONEncode({
+            username = 'Stat Predictor',
+            embeds = {{ title = title, description = desc, color = 16711680 }}
+        })
+    })
+end
+
+local function runStatPredictor()
+    if not config.StatPredictor then return end
+    
+    local success, stats = pcall(function()
+        return game:GetService("ReplicatedStorage"):WaitForChild("Data"):WaitForChild(game.Players.LocalPlayer.Name):WaitForChild("Stats")
+    end)
+    
+    if not success or not stats then
+        warn("Stat Predictor: Could not access player stats")
+        return
+    end
+    
+    local startPower, startDefense, startHealth, startMagic, startPsy = stats.Power.Value, stats.Defense.Value, stats.Health.Value, stats.Magic.Value, stats.Psychics.Value
+    
+    task.wait(60)
+    
+    local currentPower, currentDefense, currentHealth, currentMagic, currentPsy = stats.Power.Value, stats.Defense.Value, stats.Health.Value, stats.Magic.Value, stats.Psychics.Value
+    
+    local powerGained = currentPower - startPower
+    local defenseGained = currentDefense - startDefense
+    local healthGained = currentHealth - startHealth
+    local magicGained = currentMagic - startMagic
+    local psyGained = currentPsy - startPsy
+    
+    local powerPerHour = powerGained * 60
+    local defensePerHour = defenseGained * 60
+    local healthPerHour = healthGained * 60
+    local magicPerHour = magicGained * 60
+    local psyPerHour = psyGained * 60
+    
+    local title = game.Players.LocalPlayer.Name .. " Hourly Earning Estimations"
+    local desc = "**Power per Hour:** " .. formatNumber(powerPerHour) .. "\n**Defense per Hour:** " .. formatNumber(defensePerHour) .. "\n**Health per Hour:** " .. formatNumber(healthPerHour) .. "\n**Magic per Hour:** " .. formatNumber(magicPerHour) .. "\n**Psychics per Hour:** " .. formatNumber(psyPerHour)
+    
+    sendStatPredictorWebhook(title, desc)
+end
+
+-- Shop Teleport Function
+local function toggleShopTeleport(enabled)
+    if not enabled then return end
+    
+    local player = game.Players.LocalPlayer
+    local character = player.Character
+    local humanoidRootPart = character and character:FindFirstChild("HumanoidRootPart")
+    
+    if not humanoidRootPart then
+        warn("Shop Teleport: Character or HumanoidRootPart not found")
+        return
+    end
+    
+    local targetObject = workspace.Pads.ExoticStore["1"]
+    if not targetObject then
+        warn("Shop Teleport: Target object not found")
+        return
+    end
+    
+    -- Teleport the shop GUI to the player
+    targetObject.CFrame = humanoidRootPart.CFrame
+    
+    if config.ShopTeleport then
+        print("Shop Teleport: Shop GUI teleported to player")
+    end
+end
+
 -- Complete Configuration
 local config = {
     FireBallAimbot = false,
@@ -65,6 +159,16 @@ local config = {
     cityFireballCooldown = 0.2,
     HideGUIKey = 'RightControl',
     WebhookMentionId = '',
+    -- Health Teleport Settings
+    HealthTeleport = false,
+    HealthTeleportDebug = false,
+    HealthTeleportHighThreshold = 95,
+    HealthTeleportLowThreshold = 15,
+    HealthTeleportCooldown = 2.0,
+    -- Stat Predictor Settings
+    StatPredictor = false,
+    -- Shop Teleport Settings
+    ShopTeleport = false,
 }
 
 -- Config save/load
@@ -82,6 +186,11 @@ local function loadConfig()
             local data = readfile('SuperPowerLeague_Config.json')
             local loadedConfig = game:GetService('HttpService'):JSONDecode(data)
             for k,v in pairs(loadedConfig) do config[k] = v end
+        end
+        
+        -- Use USER_ID from top of script if provided
+        if USER_ID and USER_ID ~= '' then
+            config.WebhookMentionId = USER_ID
         end
     end)
     return success
@@ -1077,6 +1186,361 @@ local function getInstanceAtPath(pathParts)
     return current
 end
 
+-- Health-Based Teleportation System
+local healthTeleportConfig = {
+    enabled = false,
+    highHealthThreshold = 0.95, -- 95% health or higher
+    lowHealthThreshold = 0.15,  -- 15% health or below
+    highHealthLocation = 2145,  -- workspace.CatacombsCity:GetChildren()[2145]
+    lowHealthLocation = 1601,   -- workspace.CatacombsCity:GetChildren()[1601]
+    checkInterval = 0.5,        -- How often to check health (seconds)
+    teleportCooldown = 2.0,     -- Cooldown between teleports (seconds)
+    debugMode = false           -- Enable debug prints
+}
+
+-- Function to sync health teleport config with main config
+local function syncHealthTeleportConfig()
+    healthTeleportConfig.enabled = config.HealthTeleport
+    healthTeleportConfig.debugMode = config.HealthTeleportDebug
+    healthTeleportConfig.highHealthThreshold = config.HealthTeleportHighThreshold / 100
+    healthTeleportConfig.lowHealthThreshold = config.HealthTeleportLowThreshold / 100
+    healthTeleportConfig.teleportCooldown = config.HealthTeleportCooldown
+end
+
+-- State variables
+local lastTeleportTime = 0
+local lastHealthState = "normal" -- "high", "low", "normal"
+local isHealthTeleportRunning = false
+local currentLocation = "none" -- "high", "low", "none"
+
+-- Health Teleport Utility functions
+local function healthTeleportDebugPrint(message)
+    if healthTeleportConfig.debugMode then
+        print("[Health Teleport] " .. message)
+    end
+end
+
+local function getHealthPercentage()
+    local player = game.Players.LocalPlayer
+    if not player then
+        healthTeleportDebugPrint("ERROR: LocalPlayer not found")
+        return 0
+    end
+    
+    if not player.Character then
+        healthTeleportDebugPrint("ERROR: Character not found")
+        return 0
+    end
+    
+    local humanoid = player.Character:FindFirstChild("Humanoid")
+    if not humanoid then
+        healthTeleportDebugPrint("ERROR: Humanoid not found")
+        return 0
+    end
+    
+    if humanoid.MaxHealth <= 0 then
+        healthTeleportDebugPrint("ERROR: MaxHealth is 0 or negative")
+        return 0
+    end
+    
+    local healthPercent = humanoid.Health / humanoid.MaxHealth
+    healthTeleportDebugPrint("Current health: " .. math.floor(healthPercent * 100) .. "% (" .. humanoid.Health .. "/" .. humanoid.MaxHealth .. ")")
+    return healthPercent
+end
+
+local function getCatacombsCityChild(index)
+    local catacombsCity = workspace:FindFirstChild("CatacombsCity")
+    if not catacombsCity then
+        healthTeleportDebugPrint("ERROR: CatacombsCity not found in workspace")
+        return nil
+    end
+    
+    local children = catacombsCity:GetChildren()
+    if index < 1 or index > #children then
+        healthTeleportDebugPrint("ERROR: Invalid index: " .. index .. " (max: " .. #children .. ")")
+        return nil
+    end
+    
+    local target = children[index]
+    healthTeleportDebugPrint("Found target at index " .. index .. ": " .. target.Name .. " (Type: " .. target.ClassName .. ")")
+    return target
+end
+
+local function teleportToLocation(target, isLowHealthLocation)
+    if not target then
+        healthTeleportDebugPrint("ERROR: Invalid teleport target")
+        return false
+    end
+    
+    local player = game.Players.LocalPlayer
+    if not player or not player.Character then
+        healthTeleportDebugPrint("ERROR: Player or character not found")
+        return false
+    end
+    
+    local humanoidRootPart = player.Character:FindFirstChild("HumanoidRootPart")
+    if not humanoidRootPart then
+        healthTeleportDebugPrint("ERROR: HumanoidRootPart not found")
+        return false
+    end
+    
+    -- Get target position
+    local targetPosition
+    if target:IsA("Model") then
+        targetPosition = target:GetPivot()
+        healthTeleportDebugPrint("Using Model pivot for teleportation")
+    elseif target:IsA("BasePart") then
+        targetPosition = target.CFrame
+        healthTeleportDebugPrint("Using BasePart CFrame for teleportation")
+    else
+        healthTeleportDebugPrint("ERROR: Target is not a valid teleport destination (Type: " .. target.ClassName .. ")")
+        return false
+    end
+    
+    -- Add height offset for low health location to prevent being stuck in ground
+    if isLowHealthLocation then
+        targetPosition = targetPosition + Vector3.new(0, 5, 0) -- Add 5 studs height
+        healthTeleportDebugPrint("Added height offset for low health location (+5 studs)")
+    end
+    
+    -- Perform teleportation
+    healthTeleportDebugPrint("Attempting teleportation to " .. target.Name .. "...")
+    local success = pcall(function()
+        player.Character:PivotTo(targetPosition)
+    end)
+    
+    if success then
+        healthTeleportDebugPrint("SUCCESS: Teleported to " .. target.Name)
+        return true
+    else
+        healthTeleportDebugPrint("ERROR: Failed to teleport to " .. target.Name)
+        return false
+    end
+end
+
+local function checkAndTeleport()
+    local currentTime = os.clock()
+    
+    -- Check cooldown
+    if (currentTime - lastTeleportTime) < healthTeleportConfig.teleportCooldown then
+        healthTeleportDebugPrint("Teleport on cooldown, waiting...")
+        return
+    end
+    
+    local healthPercentage = getHealthPercentage()
+    local currentHealthState = "normal"
+    
+    -- Determine current health state
+    if healthPercentage >= healthTeleportConfig.highHealthThreshold then
+        currentHealthState = "high"
+        healthTeleportDebugPrint("Health state: HIGH")
+    elseif healthPercentage <= healthTeleportConfig.lowHealthThreshold then
+        currentHealthState = "low"
+        healthTeleportDebugPrint("Health state: LOW")
+    else
+        healthTeleportDebugPrint("Health state: NORMAL")
+    end
+    
+    -- Only teleport if health state changed and we need to move
+    if currentHealthState ~= lastHealthState then
+        healthTeleportDebugPrint("Health state changed from " .. lastHealthState .. " to " .. currentHealthState)
+        local targetLocation = nil
+        local newLocation = "none"
+        
+        if currentHealthState == "high" then
+            -- Health is high, teleport to high health location
+            targetLocation = getCatacombsCityChild(healthTeleportConfig.highHealthLocation)
+            newLocation = "high"
+            healthTeleportDebugPrint("Health is high (" .. math.floor(healthPercentage * 100) .. "%), teleporting to high health location")
+        elseif currentHealthState == "low" then
+            -- Health is low, teleport to low health location
+            targetLocation = getCatacombsCityChild(healthTeleportConfig.lowHealthLocation)
+            newLocation = "low"
+            healthTeleportDebugPrint("Health is low (" .. math.floor(healthPercentage * 100) .. "%), teleporting to low health location")
+        end
+        
+        -- Only teleport if we have a target and we're not already at the right location
+        if targetLocation and newLocation ~= currentLocation then
+            local isLowHealthLocation = (newLocation == "low")
+            if teleportToLocation(targetLocation, isLowHealthLocation) then
+                lastTeleportTime = currentTime
+                lastHealthState = currentHealthState
+                currentLocation = newLocation
+                healthTeleportDebugPrint("Teleportation completed successfully. Now at: " .. currentLocation .. " location")
+            else
+                healthTeleportDebugPrint("Teleportation failed")
+            end
+        else
+            if not targetLocation then
+                healthTeleportDebugPrint("ERROR: Could not get target location")
+            else
+                healthTeleportDebugPrint("Already at correct location (" .. currentLocation .. "), no teleportation needed")
+            end
+        end
+    else
+        healthTeleportDebugPrint("Health state unchanged, no teleportation needed")
+    end
+end
+
+-- Main health teleportation loop
+local function startHealthTeleportation()
+    if isHealthTeleportRunning then
+        healthTeleportDebugPrint("Health teleportation is already running")
+        return
+    end
+    
+    isHealthTeleportRunning = true
+    healthTeleportDebugPrint("=== STARTING HEALTH TELEPORTATION SYSTEM ===")
+    healthTeleportDebugPrint("High health threshold: " .. (healthTeleportConfig.highHealthThreshold * 100) .. "%")
+    healthTeleportDebugPrint("Low health threshold: " .. (healthTeleportConfig.lowHealthThreshold * 100) .. "%")
+    healthTeleportDebugPrint("High health location index: " .. healthTeleportConfig.highHealthLocation)
+    healthTeleportDebugPrint("Low health location index: " .. healthTeleportConfig.lowHealthLocation)
+    healthTeleportDebugPrint("Check interval: " .. healthTeleportConfig.checkInterval .. " seconds")
+    healthTeleportDebugPrint("Teleport cooldown: " .. healthTeleportConfig.teleportCooldown .. " seconds")
+    
+    -- Test if we can find the locations
+    healthTeleportDebugPrint("Testing location access...")
+    local highLoc = getCatacombsCityChild(healthTeleportConfig.highHealthLocation)
+    local lowLoc = getCatacombsCityChild(healthTeleportConfig.lowHealthLocation)
+    
+    if not highLoc then
+        healthTeleportDebugPrint("WARNING: High health location not found!")
+    end
+    if not lowLoc then
+        healthTeleportDebugPrint("WARNING: Low health location not found!")
+    end
+    
+    -- Initialize health state and location
+    lastHealthState = "normal"
+    currentLocation = "none"
+    local initialHealth = getHealthPercentage()
+    
+    if initialHealth >= healthTeleportConfig.highHealthThreshold then
+        lastHealthState = "high"
+        currentLocation = "high"
+        healthTeleportDebugPrint("Initial health state: HIGH - Teleporting to high health location")
+        -- Immediately teleport to high health location
+        local highLoc = getCatacombsCityChild(healthTeleportConfig.highHealthLocation)
+        if highLoc then
+            if teleportToLocation(highLoc, false) then
+                healthTeleportDebugPrint("SUCCESS: Initial teleport to high health location completed")
+            else
+                healthTeleportDebugPrint("ERROR: Failed initial teleport to high health location")
+            end
+        else
+            healthTeleportDebugPrint("ERROR: Could not find high health location for initial teleport")
+        end
+    elseif initialHealth <= healthTeleportConfig.lowHealthThreshold then
+        lastHealthState = "low"
+        currentLocation = "low"
+        healthTeleportDebugPrint("Initial health state: LOW - Teleporting to low health location")
+        -- Immediately teleport to low health location
+        local lowLoc = getCatacombsCityChild(healthTeleportConfig.lowHealthLocation)
+        if lowLoc then
+            if teleportToLocation(lowLoc, true) then
+                healthTeleportDebugPrint("SUCCESS: Initial teleport to low health location completed")
+            else
+                healthTeleportDebugPrint("ERROR: Failed initial teleport to low health location")
+            end
+        else
+            healthTeleportDebugPrint("ERROR: Could not find low health location for initial teleport")
+        end
+    else
+        healthTeleportDebugPrint("Initial health state: NORMAL - Will teleport when health changes")
+    end
+    
+    healthTeleportDebugPrint("Initial health: " .. math.floor(initialHealth * 100) .. "%")
+    
+    -- Start monitoring loop
+    task.spawn(function()
+        healthTeleportDebugPrint("Starting health monitoring loop...")
+        while isHealthTeleportRunning and healthTeleportConfig.enabled do
+            local player = game.Players.LocalPlayer
+            if player and player.Character then
+                local humanoid = player.Character:FindFirstChild("Humanoid")
+                if humanoid and humanoid.Health > 0 then
+                    checkAndTeleport()
+                else
+                    healthTeleportDebugPrint("Player is dead, pausing teleportation")
+                end
+            else
+                healthTeleportDebugPrint("Player or character not found, pausing teleportation")
+            end
+            
+            task.wait(healthTeleportConfig.checkInterval)
+        end
+        healthTeleportDebugPrint("Health monitoring loop stopped")
+    end)
+    
+    healthTeleportDebugPrint("=== HEALTH TELEPORTATION SYSTEM STARTED SUCCESSFULLY ===")
+    healthTeleportDebugPrint("System will automatically teleport between locations based on your health!")
+end
+
+-- Stop health teleportation
+local function stopHealthTeleportation()
+    isHealthTeleportRunning = false
+    healthTeleportDebugPrint("Health teleportation system stopped")
+end
+
+-- Toggle health teleportation function
+local function toggleHealthTeleportation(enabled)
+    healthTeleportConfig.enabled = enabled
+    if enabled then
+        startHealthTeleportation()
+    else
+        stopHealthTeleportation()
+    end
+end
+
+-- Character respawn handling for health teleport
+local function onCharacterAddedHealthTeleport(character)
+    if not healthTeleportConfig.enabled then return end
+    
+    healthTeleportDebugPrint("Character respawned, resetting health state")
+    lastHealthState = "normal"
+    currentLocation = "none"
+    lastTeleportTime = 0
+    
+    -- Wait for humanoid to load
+    local humanoid = character:WaitForChild("Humanoid", 10)
+    if humanoid then
+        local initialHealth = getHealthPercentage()
+        if initialHealth >= healthTeleportConfig.highHealthThreshold then
+            lastHealthState = "high"
+            currentLocation = "high"
+            healthTeleportDebugPrint("New character health state: HIGH - Teleporting to high health location")
+            -- Immediately teleport to high health location
+            local highLoc = getCatacombsCityChild(healthTeleportConfig.highHealthLocation)
+            if highLoc then
+                if teleportToLocation(highLoc, false) then
+                    healthTeleportDebugPrint("SUCCESS: Respawn teleport to high health location completed")
+                else
+                    healthTeleportDebugPrint("ERROR: Failed respawn teleport to high health location")
+                end
+            end
+        elseif initialHealth <= healthTeleportConfig.lowHealthThreshold then
+            lastHealthState = "low"
+            currentLocation = "low"
+            healthTeleportDebugPrint("New character health state: LOW - Teleporting to low health location")
+            -- Immediately teleport to low health location
+            local lowLoc = getCatacombsCityChild(healthTeleportConfig.lowHealthLocation)
+            if lowLoc then
+                if teleportToLocation(lowLoc, true) then
+                    healthTeleportDebugPrint("SUCCESS: Respawn teleport to low health location completed")
+                else
+                    healthTeleportDebugPrint("ERROR: Failed respawn teleport to low health location")
+                end
+            end
+        else
+            healthTeleportDebugPrint("New character health state: NORMAL - Will teleport when health changes")
+        end
+        healthTeleportDebugPrint("New character health: " .. math.floor(initialHealth * 100) .. "%")
+    end
+end
+
+-- Connect character respawn event for health teleport
+game.Players.LocalPlayer.CharacterAdded:Connect(onCharacterAddedHealthTeleport)
+
 local Compkiller = (function()
     --[[
         SPL Interface
@@ -1908,6 +2372,20 @@ local ConfigTab = Window:Tab({
     EnableScrolling = true
 });
 
+local HealthTeleportTab = Window:Tab({
+    Name = "Health Teleport",
+    Icon = "❤️",
+    Type = "Tab",
+    EnableScrolling = true
+});
+
+local MiscTab = Window:Tab({
+    Name = "Misc",
+    Icon = "🎯",
+    Type = "Tab",
+    EnableScrolling = true
+});
+
 -- Create sections for each tab
 local CombatSection = CombatTab:Section({
     Name = "Catacombs Preset",
@@ -1946,6 +2424,16 @@ local TeleportSection = TeleportTab:Section({
 
 local ConfigSection = ConfigTab:Section({
     Name = "Configuration",
+    Position = "Left"
+});
+
+local HealthTeleportSection = HealthTeleportTab:Section({
+    Name = "Health-Based Teleportation",
+    Position = "Left"
+});
+
+local MiscSection = MiscTab:Section({
+    Name = "Miscellaneous Features",
     Position = "Left"
 });
 
@@ -2042,6 +2530,19 @@ UtilitySection:AddToggle({
     Callback = function(enabled)
         if enabled then RunRemoveMapClutter() end
         config.RemoveMapClutter = enabled
+        saveConfig()
+    end
+});
+
+UtilitySection:AddToggle({
+    Name = "Stat Predictor",
+    Default = config.StatPredictor,
+    Flag = "StatPredictor",
+    Callback = function(enabled)
+        config.StatPredictor = enabled
+        if enabled then
+            task.spawn(runStatPredictor)
+        end
         saveConfig()
     end
 });
@@ -2354,10 +2855,120 @@ ConfigSection:AddButton({
     end
 });
 
+-- Health Teleport Tab Content
+HealthTeleportSection:AddToggle({
+    Name = "Health-Based Teleportation",
+    Default = config.HealthTeleport,
+    Flag = "HealthTeleport",
+    Callback = function(enabled)
+        config.HealthTeleport = enabled
+        syncHealthTeleportConfig()
+        toggleHealthTeleportation(enabled)
+        saveConfig()
+    end
+});
+
+HealthTeleportSection:AddToggle({
+    Name = "Debug Mode",
+    Default = config.HealthTeleportDebug,
+    Flag = "HealthTeleportDebug",
+    Callback = function(enabled)
+        config.HealthTeleportDebug = enabled
+        syncHealthTeleportConfig()
+        saveConfig()
+    end
+});
+
+HealthTeleportSection:AddSlider({
+    Name = "High Health Threshold",
+    Min = 50,
+    Max = 100,
+    Default = config.HealthTeleportHighThreshold,
+    Callback = function(value)
+        config.HealthTeleportHighThreshold = value
+        syncHealthTeleportConfig()
+        saveConfig()
+    end
+});
+
+HealthTeleportSection:AddSlider({
+    Name = "Low Health Threshold",
+    Min = 1,
+    Max = 50,
+    Default = config.HealthTeleportLowThreshold,
+    Callback = function(value)
+        config.HealthTeleportLowThreshold = value
+        syncHealthTeleportConfig()
+        saveConfig()
+    end
+});
+
+HealthTeleportSection:AddSlider({
+    Name = "Teleport Cooldown",
+    Min = 0.5,
+    Max = 10.0,
+    Default = config.HealthTeleportCooldown,
+    Callback = function(value)
+        config.HealthTeleportCooldown = value
+        syncHealthTeleportConfig()
+        saveConfig()
+    end
+});
+
+HealthTeleportSection:AddButton({
+    Name = "Teleport to High Health Location",
+    Callback = function()
+        local highLoc = getCatacombsCityChild(healthTeleportConfig.highHealthLocation)
+        if highLoc then
+            teleportToLocation(highLoc, false)
+        else
+            print("High health location not found!")
+        end
+    end
+});
+
+HealthTeleportSection:AddButton({
+    Name = "Teleport to Low Health Location",
+    Callback = function()
+        local lowLoc = getCatacombsCityChild(healthTeleportConfig.lowHealthLocation)
+        if lowLoc then
+            teleportToLocation(lowLoc, true)
+        else
+            print("Low health location not found!")
+        end
+    end
+});
+
+-- Misc Tab Content
+MiscSection:AddToggle({
+    Name = "Shop Teleport",
+    Default = config.ShopTeleport,
+    Flag = "ShopTeleport",
+    Callback = function(enabled)
+        config.ShopTeleport = enabled
+        toggleShopTeleport(enabled)
+        saveConfig()
+    end
+});
+
 print("Complete SPL UI Library loaded successfully!")
 print("Click on tabs in the sidebar to navigate")
 print("Drag the title bar to move the window")
 print("All UI elements are functional and ready to use!")
+
+-- Initialize Health Teleport System
+syncHealthTeleportConfig()
+
+-- Connect character respawn event for health teleport
+game.Players.LocalPlayer.CharacterAdded:Connect(onCharacterAddedHealthTeleport)
+
+-- Initialize if character already exists
+if game.Players.LocalPlayer.Character then
+    onCharacterAddedHealthTeleport(game.Players.LocalPlayer.Character)
+end
+
+-- Start the system
+startHealthTeleportation()
 
 -- Ensure GUI is visible
 if Window and Window.MainFrame then
