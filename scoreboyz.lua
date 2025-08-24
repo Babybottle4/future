@@ -9,6 +9,8 @@ USER_ID = ''
 print("Starting SPL UI Library initialization...")
 
 local function postWebhook(usernameLabel, titleText, descText, mentionUserId)
+    print("DEBUG: postWebhook called with:", usernameLabel, titleText, descText, mentionUserId)
+    
     local request = (syn and syn.request) or (http and http.request) or http_request or (fluxus and fluxus.request)
     if not request then
         warn('Your executor does not support HTTP requests.')
@@ -17,6 +19,10 @@ local function postWebhook(usernameLabel, titleText, descText, mentionUserId)
     
     -- Get webhook URL from global scope or use the one defined in script
     local webhookUrl = getgenv().WEBHOOK_URL or WEBHOOK_URL or ''
+    print("DEBUG: Webhook URL found:", webhookUrl ~= '' and "YES" or "NO")
+    print("DEBUG: getgenv().WEBHOOK_URL:", getgenv().WEBHOOK_URL)
+    print("DEBUG: WEBHOOK_URL:", WEBHOOK_URL)
+    
     if webhookUrl == '' then
         warn('Webhook URL not configured. Please set WEBHOOK_URL at the top of your loadstring.')
         return
@@ -39,15 +45,26 @@ local function postWebhook(usernameLabel, titleText, descText, mentionUserId)
         payload.content = '<@' .. tostring(mentionUserId) .. '>'
         payload.allowed_mentions = { parse = {}, users = { tostring(mentionUserId) } }
     end
-    request({
-        Url = webhookUrl,
-        Method = 'POST',
-        Headers = { ['Content-Type'] = 'application/json' },
-        Body = game:GetService('HttpService'):JSONEncode(payload),
-    })
+    
+    print("DEBUG: Sending webhook request...")
+    local success, response = pcall(function()
+        return request({
+            Url = webhookUrl,
+            Method = 'POST',
+            Headers = { ['Content-Type'] = 'application/json' },
+            Body = game:GetService('HttpService'):JSONEncode(payload),
+        })
+    end)
+    
+    if success then
+        print("DEBUG: Webhook request sent successfully")
+    else
+        warn("DEBUG: Webhook request failed:", response)
+    end
 end
 
 local function sendDeathWebhook(playerName, killerName, mentionUserId)
+    print("DEBUG: sendDeathWebhook called for player:", playerName, "killed by:", killerName, "mention ID:", mentionUserId)
     postWebhook('Death Bot', '⚠️ Player Killed!', playerName .. ' was killed.', mentionUserId)
 end
 
@@ -214,6 +231,24 @@ end
 
 loadConfig()
 
+-- Test webhook function (you can call this manually)
+local function testWebhook()
+    print("DEBUG: Testing webhook...")
+    print("DEBUG: config.DeathWebhook:", config.DeathWebhook)
+    print("DEBUG: config.WebhookMentionId:", config.WebhookMentionId)
+    print("DEBUG: getgenv().WEBHOOK_URL:", getgenv().WEBHOOK_URL)
+    print("DEBUG: WEBHOOK_URL:", WEBHOOK_URL)
+    
+    if config.DeathWebhook then
+        sendDeathWebhook("TestPlayer", "TestKiller", config.WebhookMentionId)
+    else
+        print("DEBUG: DeathWebhook is disabled in config")
+    end
+end
+
+-- Make test function globally accessible
+getgenv().testWebhook = testWebhook
+
 -- Death + Panic webhook watcher
 local lastPanicSentAt = 0
 local PANIC_THRESHOLD = 0.95
@@ -227,6 +262,7 @@ local function initializeDeathAndPanicWatchers()
         local deathSent = false
 
         humanoid.Died:Connect(function()
+            print("DEBUG: Player died! DeathWebhook enabled:", config.DeathWebhook, "deathSent:", deathSent)
             if not deathSent and config.DeathWebhook then
                 deathSent = true
                 sendDeathWebhook(game.Players.LocalPlayer.Name, (lastDamager and lastDamager.Name) or 'Unknown', config.WebhookMentionId)
