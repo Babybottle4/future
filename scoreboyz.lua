@@ -14,6 +14,14 @@ local function postWebhook(usernameLabel, titleText, descText, mentionUserId)
         warn('Your executor does not support HTTP requests.')
         return
     end
+    
+    -- Get webhook URL from global scope or use the one defined in script
+    local webhookUrl = getgenv().WEBHOOK_URL or WEBHOOK_URL or ''
+    if webhookUrl == '' then
+        warn('Webhook URL not configured. Please set WEBHOOK_URL at the top of your loadstring.')
+        return
+    end
+    
     local payload = {
         username = usernameLabel,
         content = nil,
@@ -32,7 +40,7 @@ local function postWebhook(usernameLabel, titleText, descText, mentionUserId)
         payload.allowed_mentions = { parse = {}, users = { tostring(mentionUserId) } }
     end
     request({
-        Url = WEBHOOK_URL,
+        Url = webhookUrl,
         Method = 'POST',
         Headers = { ['Content-Type'] = 'application/json' },
         Body = game:GetService('HttpService'):JSONEncode(payload),
@@ -62,8 +70,15 @@ local function sendStatPredictorWebhook(title, desc)
     local request = (syn and syn.request) or (http and http.request) or http_request
     if not request then return end
     
+    -- Get stat predictor webhook URL from global scope or use the one defined in script
+    local statWebhookUrl = getgenv().STAT_PREDICTOR_WEBHOOK_URL or STAT_PREDICTOR_WEBHOOK_URL or ''
+    if statWebhookUrl == '' then
+        warn('Stat Predictor Webhook URL not configured. Please set STAT_PREDICTOR_WEBHOOK_URL at the top of your loadstring.')
+        return
+    end
+    
     request({
-        Url = STAT_PREDICTOR_WEBHOOK_URL,
+        Url = statWebhookUrl,
         Method = 'POST',
         Headers = { ['Content-Type'] = 'application/json' },
         Body = game:GetService('HttpService'):JSONEncode({
@@ -188,9 +203,10 @@ local function loadConfig()
             for k,v in pairs(loadedConfig) do config[k] = v end
         end
         
-        -- Use USER_ID from top of script if provided
-        if USER_ID and USER_ID ~= '' then
-            config.WebhookMentionId = USER_ID
+        -- Use USER_ID from global scope or top of script if provided
+        local globalUserId = getgenv().USER_ID or USER_ID
+        if globalUserId and globalUserId ~= '' then
+            config.WebhookMentionId = globalUserId
         end
     end)
     return success
