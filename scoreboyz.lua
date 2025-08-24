@@ -1,6 +1,6 @@
 -- Webhook Configuration
-WEBHOOK_URL = 'https://discord.com/api/webhooks/1408101949613539429/-7NyMTr4xxMy_DLpH9uQBWyh52P6g5voZd_IZlpBpDxLgukH49QxUWYYd9v5vDTVbG7v'
-STAT_PREDICTOR_WEBHOOK_URL = 'https://discord.com/api/webhooks/1408101949613539429/-7NyMTr4xxMy_DLpH9uQBWyh52P6g5voZd_IZlpBpDxLgukH49QxUWYYd9v5vDTVbG7v'
+WEBHOOK_URL = ''
+STAT_PREDICTOR_WEBHOOK_URL = ''
 USER_ID = ''
 
 -- Complete SPL UI Library Implementation
@@ -1992,18 +1992,45 @@ local Compkiller = (function()
                 SectionLabel.TextSize = 14
                 SectionLabel.TextXAlignment = Enum.TextXAlignment.Left
 
-                local ContentArea2 = Instance.new("Frame")
-                ContentArea2.Name = Compkiller:_RandomString()
-                ContentArea2.Parent = SectionFrame
-                ContentArea2.BackgroundTransparency = 1
-                ContentArea2.Position = UDim2.new(0, 0, 0, 30)
-                ContentArea2.Size = UDim2.new(1, 0, 1, -30)
-                ContentArea2.ZIndex = 6
+                local ContentArea2
+                local UIListLayout2
+                
+                -- Check if this is the Shops or Questlines section and make it scrollable
+                if config.Name == "Shops" or config.Name == "Questlines" then
+                    ContentArea2 = Instance.new("ScrollingFrame")
+                    ContentArea2.Name = Compkiller:_RandomString()
+                    ContentArea2.Parent = SectionFrame
+                    ContentArea2.BackgroundTransparency = 1
+                    ContentArea2.Position = UDim2.new(0, 0, 0, 30)
+                    ContentArea2.Size = UDim2.new(1, 0, 1, -30)
+                    ContentArea2.ZIndex = 6
+                    ContentArea2.ScrollBarThickness = 6
+                    ContentArea2.ScrollBarImageColor3 = Compkiller.Colors.Highlight
+                    ContentArea2.CanvasSize = UDim2.new(0, 0, 0, 0)
 
-                local UIListLayout2 = Instance.new("UIListLayout")
-                UIListLayout2.Parent = ContentArea2
-                UIListLayout2.SortOrder = Enum.SortOrder.LayoutOrder
-                UIListLayout2.Padding = UDim.new(0, 5)
+                    UIListLayout2 = Instance.new("UIListLayout")
+                    UIListLayout2.Parent = ContentArea2
+                    UIListLayout2.SortOrder = Enum.SortOrder.LayoutOrder
+                    UIListLayout2.Padding = UDim.new(0, 5)
+
+                    -- Auto-adjust canvas size based on content
+                    UIListLayout2:GetPropertyChangedSignal('AbsoluteContentSize'):Connect(function()
+                        ContentArea2.CanvasSize = UDim2.fromOffset(0, UIListLayout2.AbsoluteContentSize.Y)
+                    end)
+                else
+                    ContentArea2 = Instance.new("Frame")
+                    ContentArea2.Name = Compkiller:_RandomString()
+                    ContentArea2.Parent = SectionFrame
+                    ContentArea2.BackgroundTransparency = 1
+                    ContentArea2.Position = UDim2.new(0, 0, 0, 30)
+                    ContentArea2.Size = UDim2.new(1, 0, 1, -30)
+                    ContentArea2.ZIndex = 6
+
+                    UIListLayout2 = Instance.new("UIListLayout")
+                    UIListLayout2.Parent = ContentArea2
+                    UIListLayout2.SortOrder = Enum.SortOrder.LayoutOrder
+                    UIListLayout2.Padding = UDim.new(0, 5)
+                end
 
                 local SectionArgs = {
                     Root = SectionFrame,
@@ -2418,8 +2445,13 @@ local ShopsSection = ShopsTab:Section({
 });
 
 local TeleportSection = TeleportTab:Section({
-    Name = "Teleport Locations",
+    Name = "Shops",
     Position = "Left"
+});
+
+local QuestlinesSection = TeleportTab:Section({
+    Name = "Questlines",
+    Position = "Right"
 });
 
 local ConfigSection = ConfigTab:Section({
@@ -2750,33 +2782,484 @@ ShopsSection:AddToggle({
     end
 });
 
--- Teleport Tab Content
+-- Shops Tab Content
 TeleportSection:AddButton({
-    Name = "Spawn",
+    Name = "Exotic Store",
     Callback = function()
-        local spawn = workspace:FindFirstChild("Spawn")
-        if spawn then
-            teleportTo(spawn.CFrame)
+        local target = workspace.Pads.ExoticStore["1"]
+        if target then
+            teleportTo(target.CFrame)
         end
     end
 });
 
 TeleportSection:AddButton({
-    Name = "City",
+    Name = "Dark Exotic Store",
     Callback = function()
-        local city = workspace:FindFirstChild("City")
-        if city then
-            teleportTo(city.CFrame)
+        local target = workspace.Pads.ExoticStore2["1"]
+        if target then
+            teleportTo(target.CFrame)
         end
     end
 });
 
 TeleportSection:AddButton({
-    Name = "Catacombs",
+    Name = "Starter Store",
     Callback = function()
-        local catacombs = workspace:FindFirstChild("Catacombs")
-        if catacombs then
-            teleportTo(catacombs.CFrame)
+        local target = workspace.Pads.Store["1"]
+        if target then
+            teleportTo(target.CFrame)
+        end
+    end
+});
+
+TeleportSection:AddButton({
+    Name = "Supermarket",
+    Callback = function()
+        local target = workspace.Pads.Store["2"]
+        if target then
+            teleportTo(target.CFrame)
+        end
+    end
+});
+
+TeleportSection:AddButton({
+    Name = "Gym Store",
+    Callback = function()
+        local target = workspace.Pads.Store["3"]
+        if target then
+            teleportTo(target.CFrame)
+        end
+    end
+});
+
+TeleportSection:AddButton({
+    Name = "Necklace Store",
+    Callback = function()
+        local target = workspace.Pads.Store["4"]
+        if target then
+            teleportTo(target.CFrame)
+        end
+    end
+});
+
+TeleportSection:AddButton({
+    Name = "Melee Store",
+    Callback = function()
+        local target = workspace.Pads.Store["5"]
+        if target then
+            teleportTo(target.CFrame)
+        end
+    end
+});
+
+TeleportSection:AddButton({
+    Name = "Premium Shop",
+    Callback = function()
+        local target = workspace.Pads.Store["6"]
+        if target then
+            teleportTo(target.CFrame)
+        end
+    end
+});
+
+TeleportSection:AddButton({
+    Name = "Armour Shop 1",
+    Callback = function()
+        local target = workspace.Pads.Store["7"]
+        if target then
+            teleportTo(target.CFrame)
+        end
+    end
+});
+
+TeleportSection:AddButton({
+    Name = "Armour Shop 2",
+    Callback = function()
+        local target = workspace.Pads.Store["8"]
+        if target then
+            teleportTo(target.CFrame)
+        end
+    end
+});
+
+TeleportSection:AddButton({
+    Name = "Tower Store",
+    Callback = function()
+        local target = workspace.Pads.Store["9"]
+        if target then
+            teleportTo(target.CFrame)
+        end
+    end
+});
+
+TeleportSection:AddButton({
+    Name = "Wand Store 1",
+    Callback = function()
+        local target = workspace.Pads.Wands["1"]
+        if target then
+            teleportTo(target.CFrame)
+        end
+    end
+});
+
+TeleportSection:AddButton({
+    Name = "Wand Store 2",
+    Callback = function()
+        local target = workspace.Pads.Wands["2"]
+        if target then
+            teleportTo(target.CFrame)
+        end
+    end
+});
+
+TeleportSection:AddButton({
+    Name = "Weight Store 1",
+    Callback = function()
+        local target = workspace.Pads.Weight["1"]
+        if target then
+            teleportTo(target.CFrame)
+        end
+    end
+});
+
+TeleportSection:AddButton({
+    Name = "Weight Store 2",
+    Callback = function()
+        local target = workspace.Pads.Weight["2"]
+        if target then
+            teleportTo(target.CFrame)
+        end
+    end
+});
+
+TeleportSection:AddButton({
+    Name = "Weight Store 3",
+    Callback = function()
+        local target = workspace.Pads.Weight["3"]
+        if target then
+            teleportTo(target.CFrame)
+        end
+    end
+});
+
+TeleportSection:AddButton({
+    Name = "Weight Store 4",
+    Callback = function()
+        local target = workspace.Pads.Weight["4"]
+        if target then
+            teleportTo(target.CFrame)
+        end
+    end
+});
+
+TeleportSection:AddButton({
+    Name = "Weight Store 5",
+    Callback = function()
+        local target = workspace.Pads.Weight["5"]
+        if target then
+            teleportTo(target.CFrame)
+        end
+    end
+});
+
+TeleportSection:AddButton({
+    Name = "Stand Store 1",
+    Callback = function()
+        local target = workspace.Pads.StandIndex["1"]
+        if target then
+            teleportTo(target.CFrame)
+        end
+    end
+});
+
+TeleportSection:AddButton({
+    Name = "Greater Stands",
+    Callback = function()
+        local target = workspace.Pads.StandIndex["2"]
+        if target then
+            teleportTo(target.CFrame)
+        end
+    end
+});
+
+TeleportSection:AddButton({
+    Name = "Demonic Stands",
+    Callback = function()
+        local target = workspace.Pads.StandIndex["3"]
+        if target then
+            teleportTo(target.CFrame)
+        end
+    end
+});
+
+TeleportSection:AddButton({
+    Name = "Anime Stands",
+    Callback = function()
+        local target = workspace.Pads.StandIndex["4"]
+        if target then
+            teleportTo(target.CFrame)
+        end
+    end
+});
+
+TeleportSection:AddButton({
+    Name = "Premium Anime Stands",
+    Callback = function()
+        local target = workspace.Pads.StandIndex["5"]
+        if target then
+            teleportTo(target.CFrame)
+        end
+    end
+});
+
+TeleportSection:AddButton({
+    Name = "Accessory Store",
+    Callback = function()
+        local target = workspace.Pads.Store["12"]
+        if target then
+            teleportTo(target.CFrame)
+        end
+    end
+});
+
+TeleportSection:AddButton({
+    Name = "Combat Helmet Store",
+    Callback = function()
+        local target = workspace.Pads.Store["13"]
+        if target then
+            teleportTo(target.CFrame)
+        end
+    end
+});
+
+TeleportSection:AddButton({
+    Name = "Luxury Hats Store",
+    Callback = function()
+        local target = workspace.Pads.Store["10"]
+        if target then
+            teleportTo(target.CFrame)
+        end
+    end
+});
+
+TeleportSection:AddButton({
+    Name = "Basic Trails Store",
+    Callback = function()
+        local target = workspace.Pads.Store["11"]
+        if target then
+            teleportTo(target.CFrame)
+        end
+    end
+});
+
+TeleportSection:AddButton({
+    Name = "Advanced Trail Store",
+    Callback = function()
+        local target = workspace.Pads.Store["14"]
+        if target then
+            teleportTo(target.CFrame)
+        end
+    end
+});
+
+TeleportSection:AddButton({
+    Name = "Legendary Trail Store",
+    Callback = function()
+        local target = workspace.Pads.Store["15"]
+        if target then
+            teleportTo(target.CFrame)
+        end
+    end
+});
+
+TeleportSection:AddButton({
+    Name = "Deluxo Upgrade",
+    Callback = function()
+        local target = workspace.Pads.DeluxoUpgrade.Credits
+        if target then
+            teleportTo(target.CFrame)
+        end
+    end
+});
+
+-- Questlines Tab Content
+QuestlinesSection:AddButton({
+    Name = "Main Questline",
+    Callback = function()
+        local target = workspace.Pads.MainTasks.MainTask
+        if target then
+            teleportTo(target.CFrame)
+        end
+    end
+});
+
+QuestlinesSection:AddButton({
+    Name = "Extra Questline",
+    Callback = function()
+        local target = workspace.Pads.MainTasks.AQuest
+        if target then
+            teleportTo(target.CFrame)
+        end
+    end
+});
+
+QuestlinesSection:AddButton({
+    Name = "Luca Questline",
+    Callback = function()
+        local target = workspace.Pads.MainTasks.LucaTask
+        if target then
+            teleportTo(target.CFrame)
+        end
+    end
+});
+
+QuestlinesSection:AddButton({
+    Name = "Reaper Questline",
+    Callback = function()
+        local target = workspace.Pads.MainTasks.ReaperTask
+        if target then
+            teleportTo(target.CFrame)
+        end
+    end
+});
+
+QuestlinesSection:AddButton({
+    Name = "Gladiator Questline",
+    Callback = function()
+        local target = workspace.Pads.MainTasks.GladiatorTask
+        if target then
+            teleportTo(target.CFrame)
+        end
+    end
+});
+
+QuestlinesSection:AddButton({
+    Name = "Guku Questline",
+    Callback = function()
+        local target = workspace.Pads.MainTasks.GUKUQuests
+        if target then
+            teleportTo(target.CFrame)
+        end
+    end
+});
+
+QuestlinesSection:AddButton({
+    Name = "Tower Questline",
+    Callback = function()
+        local target = workspace.Pads.MainTasks.TowerFacility
+        if target then
+            teleportTo(target.CFrame)
+        end
+    end
+});
+
+QuestlinesSection:AddButton({
+    Name = "Ancient Questline",
+    Callback = function()
+        local target = workspace.Pads.MainTasks.AncientQuests
+        if target then
+            teleportTo(target.CFrame)
+        end
+    end
+});
+
+QuestlinesSection:AddButton({
+    Name = "Defence Questline",
+    Callback = function()
+        local target = workspace.Pads.MainTasks.MainTask
+        if target then
+            teleportTo(target.CFrame)
+        end
+    end
+});
+
+QuestlinesSection:AddButton({
+    Name = "Power Questline",
+    Callback = function()
+        local target = workspace.Pads.MainTasks.PowerQuests
+        if target then
+            teleportTo(target.CFrame)
+        end
+    end
+});
+
+QuestlinesSection:AddButton({
+    Name = "Magic Questline",
+    Callback = function()
+        local target = workspace.Pads.MainTasks.MagicQuests
+        if target then
+            teleportTo(target.CFrame)
+        end
+    end
+});
+
+QuestlinesSection:AddButton({
+    Name = "Mobility Questline",
+    Callback = function()
+        local target = workspace.Pads.MainTasks.MobilityQuests
+        if target then
+            teleportTo(target.CFrame)
+        end
+    end
+});
+
+QuestlinesSection:AddButton({
+    Name = "Dishes Side Task",
+    Callback = function()
+        local target = workspace.Pads.SideTasks["1"]
+        if target then
+            teleportTo(target.CFrame)
+        end
+    end
+});
+
+QuestlinesSection:AddButton({
+    Name = "Spawn Mob Task",
+    Callback = function()
+        local target = workspace.Pads.SideTasks["2"]
+        if target then
+            teleportTo(target.CFrame)
+        end
+    end
+});
+
+QuestlinesSection:AddButton({
+    Name = "City Mob Tasks 1",
+    Callback = function()
+        local target = workspace.Pads.SideTasks["3"]
+        if target then
+            teleportTo(target.CFrame)
+        end
+    end
+});
+
+QuestlinesSection:AddButton({
+    Name = "City Mob Tasks 2",
+    Callback = function()
+        local target = workspace.Pads.SideTasks["4"]
+        if target then
+            teleportTo(target.CFrame)
+        end
+    end
+});
+
+QuestlinesSection:AddButton({
+    Name = "Ninja Mob Tasks",
+    Callback = function()
+        local target = workspace.Pads.SideTasks["5"]
+        if target then
+            teleportTo(target.CFrame)
+        end
+    end
+});
+
+QuestlinesSection:AddButton({
+    Name = "Arena Mob Tasks",
+    Callback = function()
+        local target = workspace.Pads.SideTasks["7"]
+        if target then
+            teleportTo(target.CFrame)
         end
     end
 });
@@ -2962,13 +3445,15 @@ syncHealthTeleportConfig()
 -- Connect character respawn event for health teleport
 game.Players.LocalPlayer.CharacterAdded:Connect(onCharacterAddedHealthTeleport)
 
--- Initialize if character already exists
-if game.Players.LocalPlayer.Character then
+-- Initialize if character already exists and health teleport is enabled
+if game.Players.LocalPlayer.Character and config.HealthTeleport then
     onCharacterAddedHealthTeleport(game.Players.LocalPlayer.Character)
 end
 
--- Start the system
-startHealthTeleportation()
+-- Start the system only if enabled
+if config.HealthTeleport then
+    startHealthTeleportation()
+end
 
 -- Ensure GUI is visible
 if Window and Window.MainFrame then
